@@ -131,7 +131,7 @@ class TestComputeMetrics:
         assert result.real_roi is not None
 
     def test_sku_breakdown_included(self):
-        """应包含单品拆解明细."""
+        """应包含单品拆解明细，含按 GMV 占比分摊的 ad_spend."""
         orders = [make_order(sku="SKU-A"), make_order(sku="SKU-B", gmv=500.0)]
         ad_spends = [{"spend": 100.0}]
         cost_configs = {
@@ -146,6 +146,31 @@ class TestComputeMetrics:
         sku_names = [s["sku_name"] for s in result.sku_breakdown]
         assert "SKU-A" in sku_names
         assert "SKU-B" in sku_names
+
+        # 总 GMV=1500, ad_spend=100
+        # SKU-A gmv=1000, ad_spend 分摊 = 100 * 1000/1500 ≈ 66.67
+        # SKU-B gmv=500,  ad_spend 分摊 = 100 * 500/1500 ≈ 33.33
+        sku_a = next(s for s in result.sku_breakdown if s["sku_name"] == "SKU-A")
+        sku_b = next(s for s in result.sku_breakdown if s["sku_name"] == "SKU-B")
+        assert "ad_spend" in sku_a
+        assert "ad_spend" in sku_b
+        assert sku_a["ad_spend"] == pytest.approx(66.67, abs=0.01)
+        assert sku_b["ad_spend"] == pytest.approx(33.33, abs=0.01)
+
+        # SKU net_profit 应扣除分摊的 ad_spend
+        # SKU-A: net_revenue=750, costs=300+12+20+3+37.5=372.5, pre_tax=377.5
+        #        tax=377.5*0.13=49.075, profit_before_ad=328.425
+        #        profit_with_ad = 328.425 - 66.67 ≈ 261.76
+        assert sku_a["net_profit"] == pytest.approx(261.76, abs=0.01)
+
+        # SKU-B: net_revenue=250, costs=150+12+10+3+12.5=187.5, pre_tax=62.5
+        #        tax=62.5*0.13=8.125, profit_before_ad=54.375
+        #        profit_with_ad = 54.375 - 33.33 ≈ 21.04
+        assert sku_b["net_profit"] == pytest.approx(21.04, abs=0.01)
+
+        # 验证净利率存在且合理
+        assert sku_a["net_margin"] is not None
+        assert sku_b["net_margin"] is not None
 
     def test_to_dict_rounds_floats(self):
         """to_dict 应将浮点数四舍五入到 2 位小数."""
@@ -176,6 +201,48 @@ class TestComputeMetrics:
         expected_tax = max(0.0, result.pre_tax_profit * 0.095)
         assert result.tax == pytest.approx(expected_tax)
 
+    def test_sku_breakdown_zero_gmv_even_split(self):
+        """GMV 为零时 ad_spend 应均摊到各 SKU."""
+        orders = [
+            dict(sku_name="A", gmv=0.0, refund_amount=0.0,
+                 platform_fee=0.0, commission=0.0,
+                 shipping_fee=0.0, insurance=0.0),
+            dict(sku_name="B", gmv=0.0, refund_amount=0.0,
+                 platform_fee=0.0, commission=0.0,
+                 shipping_fee=0.0, insurance=0.0),
+        ]
+        ad_spends = [{"spend": 100.0}]
+        cost_configs = {
+            "A": make_cost(sku="A"),
+            "B": make_cost(sku="B"),
+        }
+
+        result = compute_metrics(
+            orders=orders, ad_spends=ad_spends, cost_configs=cost_configs,
+        )
+        assert result.gmv == 0.0
+        assert len(result.sku_breakdown) == 2
+        # 100 / 2 = 50 each
+        for item in result.sku_breakdown:
+            assert item["ad_spend"] == 50.0
+
+    def test_sku_net_margin_none_when_zero_denom(self):
+        """SKU net_revenue 为 0 时 net_margin 应为 None."""
+        orders = [
+            dict(sku_name="商品A", gmv=0.0, refund_amount=0.0,
+                 platform_fee=0.0, commission=0.0,
+                 shipping_fee=0.0, insurance=0.0),
+        ]
+        ad_spends = []
+        cost_configs = {"商品A": make_cost(sku="商品A")}
+
+        result = compute_metrics(
+            orders=orders, ad_spends=ad_spends, cost_configs=cost_configs,
+        )
+        assert len(result.sku_breakdown) == 1
+        assert result.sku_breakdown[0]["net_margin"] is None
+        assert result.sku_breakdown[0]["net_revenue"] == 0.0
+
 
 class TestComputePeriodSummary:
     def test_daily_summary(self):
@@ -204,6 +271,27 @@ class TestComputePeriodSummary:
         assert results[1].period_value == "2026-07-02"
         assert results[0].gmv == 1000.0
         assert results[1].gmv == 500.0
+
+    def test_daily_summary_forwards_default_cost(self):
+        """compute_period_summary 应将 default_cost 转发到 compute_metrics."""
+        orders = [
+            {"sku_name": "未知SKU", "gmv": 500.0, "refund_amount": 0.0,
+             "platform_fee": 0.0, "commission": 0.0,
+             "shipping_fee": 0.0, "insurance": 0.0,
+             "settle_date": "2026-07-01"},
+        ]
+        ad_spends = [{"spend": 50.0, "date": "2026-07-01"}]
+        cost_configs = {}  # 无匹配，全靠 default_cost
+        default = make_cost(cost_per_unit=100.0, gift_pct=0.0)
+
+        results = compute_period_summary(
+            orders=orders, ad_spends=ad_spends,
+            cost_configs=cost_configs, period_type="day",
+            default_cost=default,
+        )
+        assert len(results) == 1
+        assert "未知SKU" in results[0].warnings[0]
+        assert results[0].product_cost == 100.0
 
     def test_weekly_summary(self):
         orders = [

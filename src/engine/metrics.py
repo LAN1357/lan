@@ -160,6 +160,9 @@ def compute_metrics(
 
     # ── 单品拆解 ──
     result.sku_breakdown = []
+    total_gmv = result.gmv
+    sku_count = len(sku_orders)
+
     for sku, sku_ords in sku_orders.items():
         cfg = cost_configs.get(sku, dc)
         sku_gmv = sum(o["gmv"] for o in sku_ords)
@@ -177,14 +180,24 @@ def compute_metrics(
         sku_tax = max(0.0, sku_pre_tax * cfg.get("tax_rate", 0))
         sku_profit = sku_pre_tax - sku_tax
 
+        # 按 GMV 占比分摊投放费用；GMV 为 0 时均摊
+        if total_gmv > 0:
+            sku_ad_spend = result.ad_spend * (sku_gmv / total_gmv)
+        else:
+            sku_ad_spend = result.ad_spend / sku_count if sku_count else 0.0
+        sku_profit_with_ad = sku_profit - sku_ad_spend
+
+        sku_margin = _safe_div(sku_profit_with_ad, sku_net_rev)
+
         result.sku_breakdown.append({
             "sku_name": sku,
             "order_count": len(sku_ords),
             "gmv": round(sku_gmv, 2),
             "net_revenue": round(sku_net_rev, 2),
             "product_cost": round(sku_prod_cost, 2),
-            "net_profit": round(sku_profit, 2),
-            "net_margin": round(_safe_div(sku_profit, sku_net_rev) or 0, 4),
+            "ad_spend": round(sku_ad_spend, 2),
+            "net_profit": round(sku_profit_with_ad, 2),
+            "net_margin": round(sku_margin, 4) if sku_margin is not None else None,
         })
 
     return result
@@ -195,6 +208,7 @@ def compute_period_summary(
     ad_spends: list[dict],
     cost_configs: dict[str, dict],
     period_type: str,
+    default_cost: dict | None = None,
 ) -> list[ROIMetrics]:
     """按期间类型汇总，返回每个期间的 ROIMetrics 列表。
 
@@ -203,6 +217,7 @@ def compute_period_summary(
         ad_spends: 全部投放，每项含 date 字段
         cost_configs: SKU 成本配置
         period_type: "day" | "week" | "month"
+        default_cost: 当 SKU 不在 cost_configs 中时使用的默认值
     """
     from datetime import datetime
 
@@ -240,6 +255,7 @@ def compute_period_summary(
             cost_configs=cost_configs,
             period_type=period_type,
             period_value=p,
+            default_cost=default_cost,
         )
         for p in all_periods
     ]
