@@ -24,10 +24,10 @@ ORDER_COLUMN_MAPS = [
         "refund_amount": ["退款金额(元)", "已退款金额", "售后金额"],
         "refund_status": ["订单状态", "售后状态"],
         "platform_fee": ["平台扣点(元)", "服务费"],
-        "commission": ["佣金(元)", "作者佣金", "达人推广费"],
+        "commission": ["佣金(元)", "作者佣金", "达人推广费", "达人佣金"],
         "shipping_fee": ["运费(元)", "快递成本"],
         "insurance": ["运费险(元)"],
-        "settle_date": ["支付时间", "下单时间", "创建时间"],
+        "settle_date": ["支付时间", "下单时间", "创建时间", "确认收货日期"],
         "live_session_id": ["关联场次", "直播ID"],
     },
 ]

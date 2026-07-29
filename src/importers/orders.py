@@ -1,0 +1,102 @@
+"""抖音订单 CSV 导入器."""
+
+import csv
+from datetime import datetime
+from pathlib import Path
+
+from .column_maps import (
+    ORDER_COLUMN_MAPS,
+    ORDER_REQUIRED_FIELDS,
+    detect_columns,
+)
+
+
+def import_orders_csv(conn, file_path: str) -> dict:
+    """导入抖音订单导出 CSV 文件.
+
+    Args:
+        conn: sqlite3.Connection
+        file_path: CSV 文件路径
+
+    Returns:
+        {"imported_count": int, "errors": [str], "mapping_used": dict, "unmatched_columns": [str]}
+    """
+    path = Path(file_path)
+    if not path.exists():
+        return {"imported_count": 0, "errors": [f"文件不存在: {file_path}"],
+                "mapping_used": {}, "unmatched_columns": []}
+
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            headers = reader.fieldnames or []
+            rows = list(reader)
+    except Exception as e:
+        return {"imported_count": 0, "errors": [f"读取 CSV 失败: {e}"],
+                "mapping_used": {}, "unmatched_columns": []}
+
+    if not headers:
+        return {"imported_count": 0, "errors": ["CSV 文件为空或无法解析表头"],
+                "mapping_used": {}, "unmatched_columns": []}
+
+    mapping, unmatched = detect_columns(headers, ORDER_COLUMN_MAPS)
+
+    # 检查必填字段
+    missing_required = [f for f in ORDER_REQUIRED_FIELDS if f not in mapping]
+    if missing_required:
+        return {
+            "imported_count": 0,
+            "errors": [f"缺少必填字段: {', '.join(missing_required)}"],
+            "mapping_used": mapping,
+            "unmatched_columns": unmatched,
+        }
+
+    now = datetime.now().isoformat()
+    imported = 0
+    errors: list[str] = []
+
+    for i, row in enumerate(rows):
+        try:
+            gmv = float(row.get(mapping["gmv"], 0) or 0)
+            refund_amount = float(row.get(mapping["refund_amount"], 0) or 0)
+
+            # 异常数据：退款 > GMV，跳过
+            if refund_amount > gmv and gmv > 0:
+                errors.append(f"第{i+2}行: 退款金额({refund_amount})大于GMV({gmv})，已跳过")
+                continue
+
+            values = {
+                "order_id": str(row.get(mapping.get("order_id", ""), "") or "").strip(),
+                "sku_name": str(row.get(mapping.get("sku_name", ""), "") or "").strip(),
+                "gmv": gmv,
+                "refund_amount": refund_amount,
+                "refund_status": str(row.get(mapping.get("refund_status", ""), "") or "").strip(),
+                "platform_fee": float(row.get(mapping.get("platform_fee", ""), 0) or 0),
+                "commission": float(row.get(mapping.get("commission", ""), 0) or 0),
+                "shipping_fee": float(row.get(mapping.get("shipping_fee", ""), 0) or 0),
+                "insurance": float(row.get(mapping.get("insurance", ""), 0) or 0),
+                "settle_date": str(row.get(mapping.get("settle_date", ""), "") or "").strip(),
+                "live_session_id": str(row.get(mapping.get("live_session_id", ""), "") or "").strip(),
+                "imported_at": now,
+            }
+
+            conn.execute("""
+                INSERT INTO orders (order_id, sku_name, gmv, refund_amount,
+                    refund_status, platform_fee, commission, shipping_fee,
+                    insurance, settle_date, live_session_id, imported_at)
+                VALUES (:order_id, :sku_name, :gmv, :refund_amount,
+                    :refund_status, :platform_fee, :commission, :shipping_fee,
+                    :insurance, :settle_date, :live_session_id, :imported_at)
+            """, values)
+            imported += 1
+        except (ValueError, KeyError) as e:
+            errors.append(f"第{i+2}行解析失败: {e}")
+
+    conn.commit()
+
+    return {
+        "imported_count": imported,
+        "errors": errors,
+        "mapping_used": mapping,
+        "unmatched_columns": unmatched,
+    }
