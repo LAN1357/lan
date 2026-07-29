@@ -31,3 +31,4 @@ data/*.xlsx
 data/*.csv
 data/*.json
 !data/.gitkeep
+data/*.db
