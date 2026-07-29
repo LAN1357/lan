@@ -1,111 +1,321 @@
-# 抖音直播带货全链路「真实 ROI 与净利」算账 Agent
+# 📊 LiveCommerce ROI Agent
 
-品牌方直播带货的算账工具。从抖音/千川导出 CSV -> 自动导入 -> 全链路净利计算 -> Claude Agent 对话解读。
+> **基于 Python MCP Server + Claude Agent 的抖音直播带货全链路净利算账系统**
+>
+> 告别"表面 ROI 繁荣"的幻象 — 以真实净利润为唯一真相源。
 
-## 快速开始
+---
 
-### 安装
+## 🎯 一句话说清
+
+直播电商最常见的一句话是"这场卖了 100 万，ROI 3.0"。但退货率 40%、达人佣金 20%、千川烧掉 15 万、赠品运费仓储人工全没算——**真实的净利润可能是负数**。
+
+这个系统做一件事：**从抖音/千川导出 CSV → 全自动解析 & 算账 → Claude Agent 用中文告诉你到底是赚了还是亏了，问题出在哪**。
+
+---
+
+## 💸 核心痛点与商业价值
+
+| 常见误区 | 真相 |
+|----------|------|
+| "GMV = 收入" | 退货率 30-50% 是常态，确认收货才算数 |
+| "ROI 只看投产比" | 营销 ROI ≠ 经营 ROI，隐形成本是利润黑洞 |
+| "千川消耗就是成本" | 达播佣金、运费险、赠品、仓储、人工、税——少算一项就虚盈实亏 |
+| "财务用友 ERP 里有成本数据" | 是，但 ERP 数据和抖音数据从来没有对在一起过 |
+
+> **商业价值**：本系统将分散在抖音后台、千川后台、用友 ERP（或 Excel）里的数据拉通为一条利润瀑布，让品牌方用**财务口径的真实净利润**做经营决策，而不是用运营口径的 GMV 自欺欺人。
+
+---
+
+## 🏗️ 系统架构
+
+### 核心理念：大模型交互 + 本地纯函数引擎 解耦
+
+```
+┌───────────────────────────────────────────────────────┐
+│                    👤 用户                             │
+│        "帮我算一下 7 月的净利润，和 6 月比"              │
+└────────────────────┬──────────────────────────────────┘
+                     ▼
+┌───────────────────────────────────────────────────────┐
+│              🤖 Claude Agent                          │
+│     · 自然语言理解 & 任务编排                           │
+│     · 数据解读 & 经营建议                              │
+│     · 异常检测 & 归因分析                              │
+└────────────────────┬──────────────────────────────────┘
+                     │ MCP 协议（9 个工具）
+                     ▼
+┌───────────────────────────────────────────────────────┐
+│            🧮 MCP Server (Python)                      │
+│                                                       │
+│  ┌──────────┐  ┌──────────────┐  ┌────────────────┐  │
+│  │ 数据导入  │  │  算账引擎     │  │  报表 & 解读    │  │
+│  │ CSV→DB  │  │  纯函数计算   │  │  Excel / HTML  │  │
+│  └──────────┘  └──────────────┘  └────────────────┘  │
+│  ┌──────────────────────────────────────────────────┐ │
+│  │          🔌 ERP Adapter（预留接口）                │ │
+│  └──────────────────────────────────────────────────┘ │
+│  ┌──────────────────────────────────────────────────┐ │
+│  │           🗄️ SQLite 本地存储                      │ │
+│  └──────────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────┘
+```
+
+> **为什么这样设计？**
+>
+> - 🧮 **算账引擎是纯函数**（零 I/O、零副作用）→ **零算术幻觉**。LLM 不参与计算，只看结果做解读
+> - 🗄️ **SQLite 本地存储** → 所有财务数据 100% 留在本地，不上传任何云端
+> - 🔌 **ERP 抽象基类** → 用友 YonSuite / U8+ / NC Cloud 换一个 adapter 即可对接
+
+---
+
+## 🔬 财务模型与算法
+
+### 7 层全链路利润瀑布
+
+```
+下单 GMV
+  ─  退货退款
+  ═  确认收货 GMV（净 GMV）
+  ─  平台技术服务费（扣点 2% ~ 5%）
+  ─  达人佣金 / 坑位费
+  ═  净收入（Net Revenue）
+  ─  商品采购/生产成本（来自 ERP 或 Excel）
+  ─  千川投放总花费
+  ─  运费 + 运费险
+  ─  赠品成本
+  ─  仓储物流分摊
+  ─  人工分摊
+  ═  税前毛利（Pre-tax Profit）
+  ─  增值税 / 附加税 / 所得税
+  ═  💰 净利润（Net Profit）— 唯一真相源
+```
+
+### 8 项核心指标
+
+| # | 指标 | 公式 | 商业含义 |
+|---|------|------|----------|
+| 1 | **净 GMV** | `GMV − 退货退款` | 剔除水分后的真实成交 |
+| 2 | **净收入** | `净 GMV − 平台扣点 − 达人佣金` | 品牌方真正到手的钱 |
+| 3 | **营销 ROI** | `(净收入 − 非投流成本) ÷ 投流花费` | 千川投放的边际效率 |
+| 4 | **真实净 ROI** | `净收入 ÷ 总成本` | 经营全局判断，>1 才不亏钱 |
+| 5 | **净利率** | `净利润 ÷ 净收入` | 盈利质量，<5% 警示 |
+| 6 | **动态退货率** | `退货金额 ÷ GMV` | 品控 & 流量精准度 |
+| 7 | **投流占比** | `投流花费 ÷ 净收入` | 流量成本健康度，>40% 警示 |
+| 8 | **SKU 利润贡献** | 按单品拆解上述全部指标 | 选品决策，砍掉赔钱货 |
+
+> **核心差异**：市面上所有"直播 ROI 工具"算的是 **营销 ROI**（只看投流产出比）。本系统算的是 **真实净 ROI**——扣完所有成本之后还剩下多少，这是财务口径的真相。
+
+---
+
+## 🛠️ 技术选型
+
+| 层级 | 技术 | 选型理由 |
+|------|------|----------|
+| Agent 交互 | Claude (via MCP Protocol) | 对话即界面，零前端开发 |
+| MCP Server | Python 3.11+ `mcp` SDK 2.0 | MCP 标准协议，Agent 工具调用 |
+| 数据库 | SQLite (WAL 模式) | 本地零运维，百万行以内无压力 |
+| 计算引擎 | Pandas + 纯函数 | 财务计算最成熟的 Python 生态 |
+| 报表导出 | openpyxl（Excel）+ Plotly（瀑布图） | 财务团队最熟悉的交付格式 |
+| 成本配置 | YAML + Pydantic | 类型安全 + 人类可读 |
+| 测试 | pytest（31 个测试用例） | 纯函数引擎 → 单测覆盖率极高 |
+
+---
+
+## 🔧 MCP Tools 工具清单
+
+本系统向 Claude Agent 暴露 **9 个 MCP 工具**，覆盖从数据导入到经营决策的全链路：
+
+### 📥 数据导入类
+
+| 工具 | 用途 | 关键参数 |
+|------|------|----------|
+| `import_orders` | 导入抖音订单导出 CSV | `file_path` — 自动检测列名，支持多版本格式 |
+| `import_ad_spend` | 导入千川投放报表 CSV | `file_path` — 自动检测列名，覆盖 2 套千川格式 |
+
+### ⚙️ 配置管理类
+
+| 工具 | 用途 | 关键参数 |
+|------|------|----------|
+| `configure_costs` | 设置/更新 SKU 成本参数 | `sku_name, cost_per_unit, gift_cost_pct, warehouse_cost_per_order, labor_pct, tax_rate` |
+| `list_cost_configs` | 查询当前成本配置 | `sku_name?` — 可选过滤 |
+| `validate_data` | 数据完整性 & 异常校验 | — 检查缺失字段 / 异常数据行 / 成本覆盖度 |
+
+### 🧮 计算分析类
+
+| 工具 | 用途 | 关键参数 |
+|------|------|----------|
+| `calculate_roi` | **核心算账**：全链路 7 层利润瀑布 + 8 项核心指标 | `period_type(day/week/month), date_start?, date_end?` |
+| `query_metrics` | 查询历史计算结果（快照缓存） | 同上 — 不重复计算 |
+| `compare_periods` | 环比/同比对比 + 利润率变动归因 | `period_type, 两个时间段的起止日期` |
+
+### 📊 报表输出类
+
+| 工具 | 用途 | 关键参数 |
+|------|------|----------|
+| `generate_report` | 生成 Excel 或 HTML 汇总报表 | `period_type, date_start, date_end, format(excel/html)` |
+
+> 所有工具通过 `MCPServer` 注册，Agent 可通过自然语言调用。例如用户说"帮我算一下 7 月 ROI"，Agent 自动调用 `calculate_roi(period_type="month", date_start="2026-07-01", date_end="2026-07-31")`。
+
+---
+
+## 📂 代码目录结构
+
+```
+livecommerce-roi-agent/
+│
+├── src/
+│   ├── server.py               # 🚀 MCP Server 入口（python src/server.py）
+│   ├── db.py                   # 🗄️ SQLite 数据库（WAL 模式 + 外键约束）
+│   ├── models.py               # 📦 Pydantic 数据模型
+│   │
+│   ├── engine/                 # 🧮 算账引擎（纯函数，零 I/O）
+│   │   ├── metrics.py           #    · 核心指标计算（ROIMetrics dataclass）
+│   │   └── calculator.py        #    · 编排层：取数 → 计算 → 写快照
+│   │
+│   ├── importers/              # 📥 数据导入 & 成本管理
+│   │   ├── orders.py            #    · 抖音订单 CSV 解析（含列名映射）
+│   │   ├── ad_spend.py          #    · 千川投放 CSV 解析（含列名映射）
+│   │   ├── column_maps.py       #    · 多版本列名自动检测
+│   │   ├── costs.py             #    · 成本配置 CRUD
+│   │   └── validator.py         #    · 数据完整性校验
+│   │
+│   ├── adapters/               # 🔌 ERP 适配器
+│   │   ├── base.py              #    · 抽象基类（ERPAdapter）
+│   │   └── excel_adapter.py     #    · Excel 成本导入（MVP 阶段）
+│   │
+│   ├── reports/                # 📊 报表输出
+│   │   └── (Plotly 瀑布图 / 汇总表生成)
+│   │
+│   └── tools/                  # 🔧 MCP 工具注册
+│       ├── import_tools.py      #    · 5 个导入 & 配置工具
+│       ├── calc_tools.py        #    · 3 个计算 & 对比工具
+│       └── report_tools.py      #    · 1 个报表生成工具
+│
+├── tests/                      # ✅ 31 个单元测试 & 集成测试
+│   ├── fixtures/                #    · 测试用 CSV 样本数据
+│   ├── test_metrics.py          #    · 指标公式验证（18 tests）
+│   ├── test_calculator.py       #    · Calculator 编排层
+│   ├── test_importers.py        #    · 导入器 & 成本管理（7 tests）
+│   └── test_integration.py      #    · 端到端全链路（5 tests）
+│
+├── config/
+│   └── default_costs.yaml      # ⚙️ 默认成本参数模板
+│
+├── data/                       # 🗄️ SQLite 数据库文件（本地）
+│
+├── .claude/agents/
+│   └── roi-analyst.md          # 🤖 Claude Agent 角色定义与分析策略
+│
+├── pyproject.toml              # 📋 项目依赖
+└── README.md                   # 📖 本文件
+```
+
+---
+
+## 🚀 快速上手
+
+### 前置要求
+
+- Python ≥ 3.11
+- Claude Code（用于 Agent 交互，[安装指南](https://docs.anthropic.com/en/docs/claude-code/overview)）
+
+### 1. 安装依赖
 
 ```bash
 cd livecommerce-roi-agent
 pip install -e ".[dev]"
 ```
 
-### 启动 MCP Server
+### 2. 启动 MCP Server
 
 ```bash
-# 方式一：通过 MCP CLI
-mcp run src/server.py
-
-# 方式二：直接运行
 python src/server.py
 ```
 
-### 配置 Claude
+### 3. 在 Claude Code 中使用
 
-在 Claude Code 中使用 Agent：
+在 Claude Code 对话中直接说：
+
+```
+帮我分析直播 ROI
+```
+
+Agent 会自动发现 `.claude/agents/roi-analyst.md` 配置，引导你完成：
+
+1. **导入数据** — 拖入抖音订单 CSV 和千川投放报表
+2. **配置成本** — 告诉它每个 SKU 的采购成本、佣金、税率等
+3. **计算分析** — Agent 自动调用 `calculate_roi`，展示全链路利润瀑布
+4. **数据解读** — Agent 解读异常、对比往期、给出经营建议
+
+### 4. 典型对话示例
+
+```
+👤 用户: 帮我导入上周的订单和千川数据
+🤖 Agent: 好的，请提供两个 CSV 文件路径。
+          [调用 import_orders + import_ad_spend]
+          已导入 1,247 条订单和 28 条投放记录。
+          当前有 3 个 SKU 的成本配置缺失：商品C、商品D、商品E。
+          需要我帮你设置吗？
+
+👤 用户: 商品C 采购成本 25，赠品率 3%，仓储费 1.5，人工占比 5%，税率 13%
+🤖 Agent: [调用 configure_costs]
+          已更新。现在运行 7 月的 ROI 计算？
+
+👤 用户: 对
+🤖 Agent: [调用 calculate_roi + generate_report]
+          7 月汇总：
+          · GMV: ¥847,000  退货率: 34.2%
+          · 净收入: ¥412,000  投流花费: ¥156,000 (37.9%)
+          · 净利润: ¥-8,420  净利率: -2.0%
+          ⚠️ 本月亏损。退货率 34.2% 偏高，投流占比 37.9% 接近警示线。
+          和 6 月对比：净利率从 +5.1% 降至 -2.0%，主因退货率上升 9 个点。
+          建议排查：是否 7 月更换了主播或投放人群包？
+```
+
+---
+
+## 🧪 运行测试
 
 ```bash
-# Claude 会自动发现 .claude/agents/roi-analyst.md 中定义的 Agent
-# 在对话中直接说"帮我分析直播ROI"即可触发
+pytest tests/ -v
 ```
 
-## 工作流程
-
-1. **导出数据**：从抖音商家后台导出订单 CSV，从千川后台导出投放报表 CSV
-2. **导入数据**：通过 Agent 对话导入两个 CSV 文件
-3. **配置成本**：设置每个 SKU 的采购成本、赠品率、仓储费、人工占比、税率
-4. **计算 ROI**：选择汇总粒度（日/周/月），Agent 自动计算并解读
-5. **导出报表**：生成 Excel 或 HTML 报表
-
-## 数据格式
-
-### 订单 CSV（抖音导出）
-
-必需列：订单号、商品名称、下单金额、退款金额、达人佣金
-
-可选列：平台服务费、运费、运费险、退款状态、支付时间
-
-系统会自动检测列名，支持抖音多种导出格式（详见 `src/importers/column_maps.py`）。
-
-### 投放报表 CSV（千川导出）
-
-必需列：计划名称、花费、日期
-
-可选列：展示数、点击数、转化数
-
-## 成本配置
-
-| 参数 | 说明 | 示例 |
-|------|------|------|
-| cost_per_unit | 单位采购/生产成本（元） | 25.0 |
-| gift_cost_pct | 赠品成本占 GMV 比例 | 0.03（3%） |
-| warehouse_cost_per_order | 单均仓储费（元） | 1.5 |
-| labor_pct | 人工分摊占净收入比例 | 0.05（5%） |
-| tax_rate | 综合税率 | 0.13（13%） |
-
-成本可通过 MCP 工具实时设置，也可通过 `config/default_costs.yaml` 配置默认值。
-
-## 运行测试
-
-```bash
-python -m pytest tests/ -v
+```
+=========================== 31 passed in 0.47s ============================
 ```
 
-## 目录结构
+| 测试模块 | 用例数 | 覆盖内容 |
+|----------|--------|----------|
+| `test_metrics.py` | 18 | 指标公式：正常盈亏 / 零投放 / 亏损零税 / None 安全 / 多 SKU / 期间汇总 |
+| `test_importers.py` | 7 | CSV 导入：标准格式 / 变体格式 / 文件缺失 / 成本 CRUD / ERP 适配器 |
+| `test_calculator.py` | 1 | Calculator 编排层：DB 集成 + 快照写入 |
+| `test_integration.py` | 5 | 端到端：全链路 / 空数据 / 日周月粒度 / 日期过滤 / 变体格式 |
 
-```
-livecommerce-roi-agent/
-├── src/
-│   ├── server.py              # MCP Server 入口（MCPServer）
-│   ├── db.py                  # SQLite 数据库初始化与连接管理
-│   ├── models.py              # Pydantic 数据模型
-│   ├── engine/                # 算账引擎（纯函数，无数据库依赖）
-│   │   ├── metrics.py         # 核心指标计算（ROIMetrics）
-│   │   └── calculator.py      # 编排层：取数 -> 计算 -> 写 snapshot
-│   ├── importers/             # CSV 导入器 + 成本管理
-│   │   ├── orders.py          # 抖音订单 CSV 导入
-│   │   ├── ad_spend.py        # 千川投放 CSV 导入
-│   │   ├── costs.py           # 成本配置管理
-│   │   ├── column_maps.py     # 列名映射（支持多种导出格式）
-│   │   └── validator.py       # 数据校验
-│   ├── adapters/              # ERP 适配器（预留接口）
-│   │   ├── base.py            # 抽象基类
-│   │   └── excel_adapter.py   # Excel ERP 成本导入
-│   ├── reports/               # 报表生成
-│   └── tools/                 # MCP 工具定义
-│       ├── import_tools.py    # 导入工具注册
-│       ├── calc_tools.py      # 计算工具注册
-│       └── report_tools.py    # 报表工具注册
-├── tests/                     # 测试
-│   ├── fixtures/              # 测试 CSV 数据
-│   ├── test_metrics.py        # 指标计算单元测试
-│   ├── test_calculator.py     # Calculator 集成测试
-│   ├── test_importers.py      # 导入器测试
-│   └── test_integration.py    # 端到端集成测试
-├── config/                    # 配置文件
-├── data/                      # SQLite 数据库存储
-├── .claude/agents/            # Claude Agent 定义
-│   └── roi-analyst.md
-└── pyproject.toml
-```
+---
+
+## 📐 设计原则
+
+| 原则 | 实践 |
+|------|------|
+| **算账零幻觉** | 算账引擎是纯函数，LLM 不参与任何数学运算 |
+| **数据安全** | 全部存储在本地 SQLite，不上传任何云端服务 |
+| **YAGNI** | ERP 对接用抽象基类预留，MVP 阶段 Excel 先行 |
+| **可测试** | 引擎纯函数、导入器、适配器各自独立可测 |
+| **渐进式** | Phase 1 CSV → Phase 2 MCP → Phase 3 报表 → Phase 4 ERP API |
+
+---
+
+## 🔮 路线图
+
+- [x] **Phase 1** — 核心算账引擎 + 31 个单元测试
+- [x] **Phase 2** — MCP Server + 9 个工具 + Claude Agent 配置
+- [x] **Phase 3** — 周期汇总报表（Excel/HTML）+ CSV 多版本列名适配
+- [ ] **Phase 4** — 用友 ERP API 对接（YonSuite / U8+ / NC Cloud）
+- [ ] **Phase 5** — 利润瀑布图可视化（Plotly）+ 事前 Roi 测算
+
+---
+
+## 📄 License
+
+MIT
