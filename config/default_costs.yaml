@@ -1,0 +1,15 @@
+# 默认成本参数模板 — 当 cost_config 表无对应 SKU 时使用
+default:
+  cost_per_unit: 0.0         # 单位采购/生产成本（元）
+  gift_cost_pct: 0.0         # 赠品成本占比（占 GMV，如 0.03 表示 3%）
+  warehouse_cost_per_order: 0.0  # 单均仓储费（元）
+  labor_pct: 0.0             # 人工分摊占比（占净收入，如 0.05 表示 5%）
+  tax_rate: 0.0              # 综合税率（如 0.13 表示 13%）
+
+# 示例配置（按需修改）
+# example_product:
+#   cost_per_unit: 25.0
+#   gift_cost_pct: 0.02
+#   warehouse_cost_per_order: 1.5
+#   labor_pct: 0.05
+#   tax_rate: 0.13
