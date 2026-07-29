@@ -85,7 +85,7 @@ def detect_columns(
         for target_field, aliases in cmap.items():
             found = False
             for alias in aliases:
-                alias_lower = alias.lower()
+                alias_lower = alias.strip().lower()
                 for i, hl in enumerate(headers_lower):
                     if hl == alias_lower:
                         mapping[target_field] = headers_orig[i]
