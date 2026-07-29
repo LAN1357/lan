@@ -6,6 +6,7 @@ from pathlib import Path
 from src.db import get_db, init_db
 from src.engine.calculator import calculate_from_db
 
+VALID_PERIOD_TYPES = {"day", "week", "month"}
 REPORTS_DIR = Path(__file__).parent.parent.parent / "data" / "reports"
 
 
@@ -27,6 +28,9 @@ def register_report_tools(mcp):
             date_end: 结束日期 YYYY-MM-DD
             format: "excel" 或 "html"
         """
+        if period_type not in VALID_PERIOD_TYPES:
+            return f"无效的 period_type: {period_type}，可选值: {', '.join(sorted(VALID_PERIOD_TYPES))}"
+
         conn = get_db()
         init_db(conn)
         result = calculate_from_db(conn, period_type=period_type,
@@ -40,7 +44,10 @@ def register_report_tools(mcp):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         if format == "excel":
-            import pandas as pd
+            try:
+                import pandas as pd
+            except ImportError:
+                return "生成 Excel 报表需要安装 pandas。请运行: pip install pandas openpyxl"
             rows = []
             for p in result["periods"]:
                 rows.append({
@@ -98,8 +105,8 @@ def _build_html_report(result: dict) -> str:
             <td>¥{p.get('net_revenue', 0):,.0f}</td>
             <td>¥{p.get('ad_spend', 0):,.0f}</td>
             <td style="color:{profit_color}">¥{p.get('net_profit', 0):,.2f}</td>
-            <td>{p.get('net_margin', 0):.1%}</td>
-            <td>{p.get('marketing_roi', 0):.2f if p.get('marketing_roi') else 'N/A'}</td>
+            <td>{p.get('net_margin'):.1% if p.get('net_margin') is not None else 'N/A'}</td>
+            <td>{p.get('marketing_roi'):.2f if p.get('marketing_roi') is not None else 'N/A'}</td>
         </tr>"""
 
     return f"""

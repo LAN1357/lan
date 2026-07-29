@@ -4,6 +4,8 @@ import json
 from src.db import get_db, init_db
 from src.engine.calculator import calculate_from_db
 
+VALID_PERIOD_TYPES = {"day", "week", "month"}
+
 
 def register_calc_tools(mcp):
     """向 MCP Server 注册所有计算相关工具."""
@@ -26,6 +28,9 @@ def register_calc_tools(mcp):
             date_start: 起始日期（含），格式 YYYY-MM-DD，不传则从最早数据开始
             date_end: 结束日期（含），格式 YYYY-MM-DD，不传则到最晚数据结束
         """
+        if period_type not in VALID_PERIOD_TYPES:
+            return f"无效的 period_type: {period_type}，可选值: {', '.join(sorted(VALID_PERIOD_TYPES))}"
+
         conn = get_db()
         init_db(conn)
         result = calculate_from_db(
@@ -63,6 +68,9 @@ def register_calc_tools(mcp):
             date_start: 起始日期 YYYY-MM-DD
             date_end: 结束日期 YYYY-MM-DD
         """
+        if period_type not in VALID_PERIOD_TYPES:
+            return f"无效的 period_type: {period_type}，可选值: {', '.join(sorted(VALID_PERIOD_TYPES))}"
+
         conn = get_db()
         init_db(conn)
 
@@ -107,6 +115,9 @@ def register_calc_tools(mcp):
             period_b_start: 基期起始日期 YYYY-MM-DD
             period_b_end: 基期结束日期 YYYY-MM-DD
         """
+        if period_type not in VALID_PERIOD_TYPES:
+            return f"无效的 period_type: {period_type}，可选值: {', '.join(sorted(VALID_PERIOD_TYPES))}"
+
         conn = get_db()
         init_db(conn)
 
