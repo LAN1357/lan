@@ -9,6 +9,7 @@ DB_PATH = DB_DIR / "roi_agent.db"
 
 def get_db() -> sqlite3.Connection:
     """获取数据库连接（启用 WAL 模式和外键约束）."""
+    DB_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")

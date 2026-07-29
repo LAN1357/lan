@@ -1,6 +1,5 @@
 """Pydantic 数据模型 — 与数据库表结构一一对应."""
 
-from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel
