@@ -8,6 +8,7 @@ build/
 
 # Virtual environments
 .venv/
+.venv-desktop/
 venv/
 env/
 
@@ -32,3 +33,26 @@ data/*.csv
 data/*.json
 !data/.gitkeep
 data/*.db
+data/**/*.db
+data/**/*.db-*
+data/**/*.xlsx
+data/**/*.bak
+outputs/
+
+# Private ledgers, runtime state and credentials
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.workbench.lock
+*.log
+.env
+.env.*
+!.env.example
+desktop.json
+.mcp.json
+.claude/settings.local.json
+.codex/config.toml
+HANDOFF.md
+*的替身
+release-artifacts/

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "抖音直播带货全链路真实ROI与净利算账Agent"
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.0.0",
+    "mcp>=1.0.0,<2",
     "pandas>=2.0.0",
     "openpyxl>=3.1.0",
     "plotly>=5.18.0",
@@ -17,7 +17,22 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
 ]
+desktop = [
+    "pywebview==6.2.1",
+]
+desktop-build = [
+    "pywebview==6.2.1",
+    "py2app==0.28.10",
+]
+
+[project.scripts]
+livecommerce-workbench = "src.workbench.app:main"
+livecommerce-workbench-desktop = "src.desktop.app:main"
 
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src", "src.*"]
